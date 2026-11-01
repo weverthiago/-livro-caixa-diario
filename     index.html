@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#202019">
+<title>Livro-Caixa Diário</title>
+<style>
+:root{--bg:#f5f3ee;--card:#fff;--ink:#24231f;--muted:#706d65;--green:#236b48;--line:#e7e2d8;--red:#a33a32}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:#25271f;color:#fff;padding:22px 18px 18px}header h1{font-size:23px;margin:0 0 5px}header p{margin:0;color:#d4d6ce;font-size:14px}
+main{max-width:760px;margin:auto;padding:16px 14px 36px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:0 0 14px;box-shadow:0 2px 8px #00000006}
+h2{font-size:18px;margin:0 0 14px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{margin:0 0 12px}label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+input,select,button{font:inherit}input,select{width:100%;border:1px solid #d9d4c9;border-radius:10px;padding:12px;background:#fff;color:var(--ink);min-height:44px}
+button{border:0;border-radius:11px;padding:12px 15px;background:var(--green);color:white;font-weight:650;min-height:44px;cursor:pointer}button.secondary{background:#ece9e1;color:#292820}button.danger{background:#f8e9e7;color:var(--red)}button:disabled{opacity:.55}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{padding:13px;border-radius:12px;background:#f6f4ee}.stat span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}.stat strong{font-size:20px;overflow-wrap:anywhere}.positive{color:var(--green)}.negative{color:var(--red)}
+.tabs{display:flex;gap:8px;margin-bottom:12px}.tabs button{flex:1}.tabs button.active{background:#25271f}.hidden{display:none!important}.notice{padding:12px;border-radius:10px;background:#fff4d7;color:#664c12;font-size:14px;line-height:1.45}.muted{color:var(--muted);font-size:13px;line-height:1.45}
+.item{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}.item:last-child{border-bottom:0}.item small{display:block;color:var(--muted);margin-top:4px}.item .amount{font-weight:700;white-space:nowrap}.item .delete{min-height:32px;padding:5px 9px;font-size:12px;margin-top:7px}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:10px}
+@media(max-width:440px){.row{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.stat strong{font-size:18px}}
+</style>
+</head>
+<body>
+<header><h1>📒 Livro-Caixa Diário</h1><p>Controle diário de receitas, despesas e saldo</p></header>
+<main>
+  <section id="setupNotice" class="card hidden"></section>
+  <section id="authCard" class="card">
+    <h2>Acesso seguro</h2>
+    <p class="muted">Entre com a conta Google autorizada para sincronizar os dados na nuvem.</p>
+    <button id="loginBtn">Entrar com Google</button>
+    <button id="logoutBtn" class="secondary hidden">Sair</button>
+    <p id="authStatus" class="muted">Não conectado.</p>
+  </section>
+  <div id="app" class="hidden">
+    <section class="card">
+      <div class="row">
+        <div class="field"><label for="date">Data do caixa</label><input id="date" type="date"></div>
+        <div class="field"><label for="opening">Saldo inicial (R$)</label><input id="opening" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+      </div>
+      <div class="actions"><button id="saveOpening">Salvar saldo inicial</button><button id="refresh" class="secondary">Atualizar</button></div>
+      <p class="muted">O saldo inicial é salvo por data. O saldo final é calculado com as receitas menos as despesas.</p>
+    </section>
+    <section class="card">
+      <h2>Resumo do dia</h2>
+      <div class="stats">
+        <div class="stat"><span>Saldo inicial</span><strong id="sOpening">R$ 0,00</strong></div>
+        <div class="stat"><span>Receitas</span><strong id="sIncome" class="positive">R$ 0,00</strong></div>
+        <div class="stat"><span>Despesas</span><strong id="sExpense" class="negative">R$ 0,00</strong></div>
+        <div class="stat"><span>Saldo final</span><strong id="sFinal">R$ 0,00</strong></div>
+      </div>
+      <p class="muted" id="paymentSummary"></p>
+    </section>
+    <section class="card">
+      <div class="tabs"><button id="incomeTab" class="active">Receitas</button><button id="expenseTab" class="secondary">Despesas</button></div>
+      <form id="entryForm">
+        <input id="entryType" type="hidden" value="receita">
+        <div class="row">
+          <div class="field"><label for="category">Categoria / forma</label><select id="category"></select></div>
+          <div class="field"><label for="amount">Valor (R$)</label><input id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required></div>
+        </div>
+        <div class="field"><label for="description">Descrição (opcional)</label><input id="description" maxlength="180" placeholder="Ex.: venda, compra, observação"></div>
+        <div class="actions"><button type="submit" id="addBtn">Adicionar receita</button></div>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Categoria de despesa personalizada</h2>
+      <div class="row"><div class="field"><label for="newCategory">Nome da categoria</label><input id="newCategory" maxlength="60" placeholder="Ex.: Combustível"></div><div class="field" style="align-self:end"><button id="addCategory" type="button">Criar categoria</button></div></div>
+      <p class="muted">Categorias iniciais: Marmita e Produto. Você pode criar outras quando precisar.</p>
+    </section>
+    <section class="card">
+      <h2>Lançamentos do dia</h2>
+      <div id="entries"><p class="muted">Carregando...</p></div>
+    </section>
+  </div>
+  <footer>Seus registros ficam no Supabase quando você estiver conectado à internet.</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(() => {
+ const SUPABASE_URL = "https://lkfeuluohwedygqrhxcq.supabase.co";
+ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_H1MaDdcyJ03o8lDGH7pqcA_daB8_NCe";
+ const configured = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("COLE_AQUI") && SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_");
+ const $ = id => document.getElementById(id);
+ const money = n => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n||0));
+ const today = new Date(); const localToday = new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
+ $('date').value = localToday;
+ let client=null, user=null, type='receita', entries=[], categories=[];
+ if (!configured) $('authStatus').textContent='Falta configurar o Project URL e a Publishable key neste arquivo.';
+ else if (!window.supabase) $('authStatus').textContent='Não foi possível carregar a biblioteca. Verifique a conexão com a internet.';
+ else client=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+ function status(msg){$('authStatus').textContent=msg}
+ function categoryOptions(){
+   const select=$('category'); select.innerHTML='';
+   const list=type==='receita'?['Dinheiro','Cartão','Pix']:categories.map(c=>c.nome);
+   if(type==='despesa'&&!list.length) list.push('Marmita','Produto');
+   list.forEach(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;select.appendChild(o)});
+   $('addBtn').textContent=type==='receita'?'Adicionar receita':'Adicionar despesa';
+ }
+ function setType(next){type=next;$('entryType').value=next;$('incomeTab').className=next==='receita'?'active':'secondary';$('expenseTab').className=next==='despesa'?'active':'secondary';categoryOptions()}
+ $('incomeTab').addEventListener('click',()=>setType('receita'));
+ $('expenseTab').addEventListener('click',()=>setType('despesa'));
+ $('loginBtn').addEventListener('click',async()=>{
+   if(!client){status('Configure primeiro o Project URL e a Publishable key.');return}
+   const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href}});
+   if(error) status('Erro no login: '+error.message);
+ });
+ $('logoutBtn').addEventListener('click',async()=>{if(client)await client.auth.signOut()});
+ async function authChanged(session){
+   user=session?.user||null;
+   $('loginBtn').classList.toggle('hidden',!!user);$('logoutBtn').classList.toggle('hidden',!user);
+   $('app').classList.toggle('hidden',!user);
+   status(user?'Conectado como '+(user.email||'conta Google'):'Não conectado.');
+   if(user){await ensureDefaults();await loadDay()} 
+ }
+ if(client){client.auth.onAuthStateChange((_event,session)=>{setTimeout(()=>authChanged(session),0)});client.auth.getSession().then(({data})=>authChanged(data.session))}
+ async function ensureDefaults(){
+   const {data,error}=await client.from('categorias_despesas').select('id,nome').order('nome');
+   if(error){status('Erro ao carregar categorias: '+error.message);return}
+   categories=data||[];
+   for(const name of ['Marmita','Produto']){
+     if(!categories.some(c=>c.nome.toLowerCase()===name.toLowerCase())){
+       const {error:insertError}=await client.from('categorias_despesas').insert({usuario_id:user.id,nome:name});
+       if(insertError && !insertError.message.includes('duplicate')) status('Não foi possível criar categoria inicial: '+insertError.message);
+     }
+   }
+   const refreshed=await client.from('categorias_despesas').select('id,nome').order('nome');
+   if(!refreshed.error) categories=refreshed.data||[];
+   categoryOptions();
+ }
+ async function loadDay(){
+   if(!user)return;
+   const day=$('date').value||localToday;
+   const [openingRes,entriesRes]=await Promise.all([
+     client.from('livro_caixa_dias').select('saldo_inicial').eq('data',day).maybeSingle(),
+     client.from('livro_caixa').select('id,data,tipo,categoria,valor,observacao,criada_em').eq('data',day).order('criada_em',{ascending:false})
+   ]);
+   if(openingRes.error){status('Banco precisa da tabela de saldos diários. Execute o arquivo SQL de configuração. '+openingRes.error.message);return}
+   if(entriesRes.error){status('Erro ao carregar lançamentos: '+entriesRes.error.message);return}
+   $('opening').value=openingRes.data?.saldo_inicial??0;
+   entries=entriesRes.data||[];
+   render();
+ }
+ function render(){
+   const opening=Number($('opening').value||0);
+   const income=entries.filter(e=>e.tipo==='receita').reduce((s,e)=>s+Number(e.valor),0);
+   const expense=entries.filter(e=>e.tipo==='despesa').reduce((s,e)=>s+Number(e.valor),0);
+   $('sOpening').textContent=money(opening);$('sIncome').textContent=money(income);$('sExpense').textContent=money(expense);$('sFinal').textContent=money(opening+income-expense);
+   const payment={Dinheiro:0,Cartão:0,Pix:0};entries.filter(e=>e.tipo==='receita').forEach(e=>{if(payment[e.categoria]!==undefined)payment[e.categoria]+=Number(e.valor)});
+   $('paymentSummary').textContent=`Dinheiro: ${money(payment.Dinheiro)} · Cartão: ${money(payment['Cartão'])} · Pix: ${money(payment.Pix)}`;
+   const wrap=$('entries');wrap.innerHTML='';
+   if(!entries.length){wrap.innerHTML='<p class="muted">Nenhum lançamento para esta data.</p>';return}
+   entries.forEach(e=>{
+     const div=document.createElement('div');div.className='item';
+     const left=document.createElement('div');left.innerHTML=`<b>${escapeHtml(e.categoria)}</b><small>${e.tipo==='receita'?'Receita':'Despesa'}${e.observacao?' · '+escapeHtml(e.observacao):''}</small>`;
+     const right=document.createElement('div');right.style.textAlign='right';
+     const amount=document.createElement('div');amount.className='amount '+(e.tipo==='receita'?'positive':'negative');amount.textContent=(e.tipo==='receita'?'+':'−')+money(e.valor);
+     const del=document.createElement('button');del.className='delete danger';del.textContent='Excluir';del.addEventListener('click',()=>deleteEntry(e.id));
+     right.append(amount,del);div.append(left,right);wrap.appendChild(div);
+   });
+ }
+ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+ $('saveOpening').addEventListener('click',async()=>{
+   if(!user)return;const day=$('date').value;const value=Number($('opening').value||0);
+   if(value<0){alert('O saldo inicial não pode ser negativo.');return}
+   const {error}=await client.from('livro_caixa_dias').upsert({usuario_id:user.id,data:day,saldo_inicial:value},{onConflict:'usuario_id,data'});
+   if(error){alert('Erro ao salvar saldo inicial: '+error.message);return}
+   await loadDay();status('Saldo inicial salvo na nuvem.');
+ });
+ $('refresh').addEventListener('click',loadDay);
+ $('date').addEventListener('change',loadDay);
+ $('entryForm').addEventListener('submit',async ev=>{
+   ev.preventDefault();if(!user){alert('Sua sessão não está ativa. Toque em Sair e entre novamente com Google.');return;}
+   const amount=Number($('amount').value);if(!Number.isFinite(amount)||amount<=0){alert('Informe um valor maior que zero.');return}
+   const category=$('category').value;if(!category){alert('Selecione uma categoria.');return}
+   const {error}=await client.from('livro_caixa').insert({usuario_id:user.id,data:$('date').value,tipo,categoria:category,valor:amount,observacao:$('description').value.trim()||null});
+   if(error){alert('Erro ao salvar lançamento: '+error.message);return}
+   $('amount').value='';$('description').value='';await loadDay();status('Lançamento salvo na nuvem.');
+ });
+ $('addCategory').addEventListener('click',async()=>{
+   if(!user)return;const nome=$('newCategory').value.trim();if(!nome){alert('Digite o nome da categoria.');return}
+   const {error}=await client.from('categorias_despesas').insert({usuario_id:user.id,nome});
+   if(error){alert('Não foi possível criar a categoria: '+error.message);return}
+   $('newCategory').value='';await ensureDefaults();setType('despesa');status('Categoria criada.');
+ });
+ async function deleteEntry(id){
+   if(!confirm('Excluir este lançamento?'))return;
+   const {error}=await client.from('livro_caixa').delete().eq('id',id);
+   if(error){alert('Erro ao excluir: '+error.message);return}await loadDay();
+ }
+ categoryOptions();
+})();
+</script>
+</body>
+</html>
