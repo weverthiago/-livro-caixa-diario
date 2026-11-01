@@ -119,7 +119,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:10px}
    categories=data||[];
    for(const name of ['Marmita','Produto']){
      if(!categories.some(c=>c.nome.toLowerCase()===name.toLowerCase())){
-       const {error:insertError}=await client.from('categorias_despesas').insert({nome:name});
+       const {error:insertError}=await client.from('categorias_despesas').insert({usuario_id:user.id,nome:name});
        if(insertError && !insertError.message.includes('duplicate')) status('Não foi possível criar categoria inicial: '+insertError.message);
      }
    }
@@ -162,23 +162,23 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:10px}
  $('saveOpening').addEventListener('click',async()=>{
    if(!user)return;const day=$('date').value;const value=Number($('opening').value||0);
    if(value<0){alert('O saldo inicial não pode ser negativo.');return}
-   const {error}=await client.from('livro_caixa_dias').upsert({data:day,saldo_inicial:value},{onConflict:'usuario_id,data'});
+   const {error}=await client.from('livro_caixa_dias').upsert({usuario_id:user.id,data:day,saldo_inicial:value},{onConflict:'usuario_id,data'});
    if(error){alert('Erro ao salvar saldo inicial: '+error.message);return}
    await loadDay();status('Saldo inicial salvo na nuvem.');
  });
  $('refresh').addEventListener('click',loadDay);
  $('date').addEventListener('change',loadDay);
  $('entryForm').addEventListener('submit',async ev=>{
-   ev.preventDefault();if(!user)return;
+   ev.preventDefault();if(!user){alert('Sua sessão não está ativa. Toque em Sair e entre novamente com Google.');return;}
    const amount=Number($('amount').value);if(!Number.isFinite(amount)||amount<=0){alert('Informe um valor maior que zero.');return}
    const category=$('category').value;if(!category){alert('Selecione uma categoria.');return}
-   const {error}=await client.from('livro_caixa').insert({data:$('date').value,tipo,categoria:category,valor:amount,observacao:$('description').value.trim()||null});
+   const {error}=await client.from('livro_caixa').insert({usuario_id:user.id,data:$('date').value,tipo,categoria:category,valor:amount,observacao:$('description').value.trim()||null});
    if(error){alert('Erro ao salvar lançamento: '+error.message);return}
    $('amount').value='';$('description').value='';await loadDay();status('Lançamento salvo na nuvem.');
  });
  $('addCategory').addEventListener('click',async()=>{
    if(!user)return;const nome=$('newCategory').value.trim();if(!nome){alert('Digite o nome da categoria.');return}
-   const {error}=await client.from('categorias_despesas').insert({nome});
+   const {error}=await client.from('categorias_despesas').insert({usuario_id:user.id,nome});
    if(error){alert('Não foi possível criar a categoria: '+error.message);return}
    $('newCategory').value='';await ensureDefaults();setType('despesa');status('Categoria criada.');
  });
